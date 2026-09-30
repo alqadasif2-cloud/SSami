@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isValidUserId(uid) {
+      return uid is int && uid >= 1;
+    }
+
+    match /community_users/{userId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'username', 'displayName', 'password', 'role'])
+        && isValidUserId(request.resource.data.id)
+        && request.resource.data.username is string
+        && request.resource.data.username.size() > 0
+        && request.resource.data.username.size() <= 100
+        && request.resource.data.password is string
+        && request.resource.data.role in ['owner', 'moderator', 'user'];
+      allow delete: if true;
+    }
+
+    match /community_channels/{channelId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'name', 'password', 'memberIds'])
+        && request.resource.data.id is string
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.password is string
+        && request.resource.data.memberIds is list;
+      allow delete: if true;
+    }
+
+    match /chat_messages/{messageId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'senderId', 'senderName', 'timestamp'])
+        && request.resource.data.id is string
+        && isValidUserId(request.resource.data.senderId)
+        && request.resource.data.senderName is string
+        && request.resource.data.senderName.size() > 0
+        && request.resource.data.senderName.size() <= 100
+        && request.resource.data.timestamp is int;
+      allow delete: if true;
+    }
+
+    match /private_messages/{messageId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'participantId', 'senderId', 'receiverId', 'timestamp'])
+        && request.resource.data.id is string
+        && isValidUserId(request.resource.data.participantId)
+        && isValidUserId(request.resource.data.senderId)
+        && isValidUserId(request.resource.data.receiverId)
+        && request.resource.data.timestamp is int;
+      allow delete: if true;
+    }
+
+    match /user_warnings/{warningId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'targetUserId', 'issuedById', 'timestamp'])
+        && request.resource.data.id is string
+        && isValidUserId(request.resource.data.targetUserId)
+        && isValidUserId(request.resource.data.issuedById)
+        && request.resource.data.timestamp is int;
+      allow delete: if true;
+    }
+
+    match /community_notifications/{notificationId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'title', 'senderId', 'targetUserIds', 'timestamp'])
+        && request.resource.data.id is string
+        && isValidUserId(request.resource.data.senderId)
+        && request.resource.data.targetUserIds is list
+        && request.resource.data.timestamp is int;
+      allow delete: if true;
+    }
+
+    match /media_files/{mediaId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'dataUrl', 'createdAt'])
+        && request.resource.data.id is string
+        && request.resource.data.dataUrl is string
+        && request.resource.data.dataUrl.size() <= 950000
+        && request.resource.data.createdAt is int;
+      allow delete: if true;
+    }
+
+    match /user_challenges/{userId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['userId', 'challenge', 'trades', 'updatedAt'])
+        && isValidUserId(request.resource.data.userId)
+        && request.resource.data.updatedAt is int;
+      allow delete: if true;
+    }
+  }
+}

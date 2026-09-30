@@ -1,0 +1,180 @@
+{
+  "entities": {
+    "CommunityUser": {
+      "title": "CommunityUser",
+      "description": "Dynamic cloud user account with role (owner, moderator, user), password, avatar, and verified channels",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "username": { "type": "string" },
+        "displayName": { "type": "string" },
+        "password": { "type": "string" },
+        "role": { "type": "string", "enum": ["owner", "moderator", "user"] },
+        "avatarUrl": { "type": "string" },
+        "verifiedChannels": { "type": "object" },
+        "warningsCount": { "type": "integer" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["id", "username", "displayName", "password", "role"]
+    },
+    "CommunityChannel": {
+      "title": "CommunityChannel",
+      "description": "Cloud channel managed by Owner Sami with independent password, image, and allowed memberIds",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "password": { "type": "string" },
+        "memberIds": { "type": "array" },
+        "createdBy": { "type": "integer" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["id", "name", "password", "memberIds"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Channel chat message with sender role, avatar, and image attachment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "channelId": { "type": "string" },
+        "senderId": { "type": "integer" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "senderAvatarUrl": { "type": "string" },
+        "text": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "timestamp": { "type": "integer" }
+      },
+      "required": ["id", "senderId", "senderName", "timestamp"]
+    },
+    "PrivateMessage": {
+      "title": "PrivateMessage",
+      "description": "Permanent private message between Owner Sami and any user or moderator",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "participantId": { "type": "integer" },
+        "participantName": { "type": "string" },
+        "senderId": { "type": "integer" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "senderAvatarUrl": { "type": "string" },
+        "receiverId": { "type": "integer" },
+        "text": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "isReport": { "type": "boolean" },
+        "timestamp": { "type": "integer" }
+      },
+      "required": ["id", "participantId", "senderId", "receiverId", "timestamp"]
+    },
+    "UserWarning": {
+      "title": "UserWarning",
+      "description": "Warning or kick record issued by Moderator or Owner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "channelId": { "type": "string" },
+        "channelName": { "type": "string" },
+        "targetUserId": { "type": "integer" },
+        "targetUserName": { "type": "string" },
+        "issuedById": { "type": "integer" },
+        "issuedByName": { "type": "string" },
+        "issuedByRole": { "type": "string" },
+        "reason": { "type": "string" },
+        "warningNumber": { "type": "integer" },
+        "evidenceImageUrl": { "type": "string" },
+        "actionType": { "type": "string" },
+        "timestamp": { "type": "integer" }
+      },
+      "required": ["id", "targetUserId", "issuedById", "timestamp"]
+    },
+    "CommunityNotification": {
+      "title": "CommunityNotification",
+      "description": "Targeted notification for channel messages from Sami/Moderators and private messages",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "senderId": { "type": "integer" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "channelId": { "type": "string" },
+        "targetUserIds": { "type": "array" },
+        "timestamp": { "type": "integer" }
+      },
+      "required": ["id", "title", "senderId", "targetUserIds", "timestamp"]
+    },
+    "MediaFile": {
+      "title": "MediaFile",
+      "description": "Cloud image storage object for avatars, channel icons, chat, and trade attachments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "dataUrl": { "type": "string" },
+        "folder": { "type": "string" },
+        "uploaderId": { "type": "integer" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["id", "dataUrl", "createdAt"]
+    },
+    "UserChallengeData": {
+      "title": "UserChallengeData",
+      "description": "Permanent per-user cloud data including active challenge, settings, trade counts, trades, and 150 milestones",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "integer" },
+        "username": { "type": "string" },
+        "challenge": { "type": "object" },
+        "completedTradesCount": { "type": "integer" },
+        "failedTradesCount": { "type": "integer" },
+        "remainingTradesCount": { "type": "integer" },
+        "trades": { "type": "array" },
+        "milestones": { "type": "array" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["userId", "challenge", "trades", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/community_users/{userId}": {
+      "schema": { "$ref": "#/entities/CommunityUser" },
+      "description": "Dynamic user accounts, roles, passwords, avatars, and verified channels"
+    },
+    "/community_channels/{channelId}": {
+      "schema": { "$ref": "#/entities/CommunityChannel" },
+      "description": "Dynamic channels created by Owner Sami"
+    },
+    "/chat_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Channel messages automatically purged after 48 hours"
+    },
+    "/private_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/PrivateMessage" },
+      "description": "Permanent private messages between Sami and users/moderators"
+    },
+    "/user_warnings/{warningId}": {
+      "schema": { "$ref": "#/entities/UserWarning" },
+      "description": "Warnings and channel kick records"
+    },
+    "/community_notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/CommunityNotification" },
+      "description": "Real-time notifications targeted to channel members or private chat recipients"
+    },
+    "/media_files/{mediaId}": {
+      "schema": { "$ref": "#/entities/MediaFile" },
+      "description": "Cloud storage for uploaded avatars, channel images, chat images, and trade images"
+    },
+    "/user_challenges/{userId}": {
+      "schema": { "$ref": "#/entities/UserChallengeData" },
+      "description": "Permanent per-user isolated trading challenge, settings, trades, and 150 milestones"
+    }
+  }
+}
