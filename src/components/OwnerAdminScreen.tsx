@@ -38,16 +38,35 @@ import {
 } from '../data/chat';
 import { CloudImage } from './CloudImage';
 import { ImageViewerModal } from './ImageViewerModal';
+import {
+  AppUpdateConfig,
+  subscribeToAppUpdateConfig,
+  saveAppUpdateConfig,
+  CURRENT_APP_VERSION_NAME,
+  CURRENT_APP_VERSION_CODE,
+} from '../services/appUpdates';
+import { AppUpdateModal } from './AppUpdateModal';
+import { Cloud, RefreshCw, Smartphone } from 'lucide-react';
 
 interface OwnerAdminScreenProps {
   currentUser: CurrentUser;
 }
 
 export const OwnerAdminScreen: React.FC<OwnerAdminScreenProps> = ({ currentUser }) => {
-  const [subTab, setSubTab] = useState<'users' | 'channels' | 'messages'>('users');
+  const [subTab, setSubTab] = useState<'users' | 'channels' | 'messages' | 'app_update'>('users');
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [channels, setChannels] = useState<CommunityChannel[]>([]);
   const [allPrivateMessages, setAllPrivateMessages] = useState<PrivateMessage[]>([]);
+
+  // App Update Cloud Config State
+  const [appUpdateConfig, setAppUpdateConfig] = useState<AppUpdateConfig | null>(null);
+  const [editVersionName, setEditVersionName] = useState('1.2.0');
+  const [editVersionCode, setEditVersionCode] = useState('10');
+  const [editDownloadUrl, setEditDownloadUrl] = useState('https://github.com/alsonadi44/SamiTradingTracker/releases');
+  const [editDescription, setEditDescription] = useState('الإصدار الأحدث متوفر الآن مع تحسينات في الأداء وتطوير الواجهة.');
+  const [editIsMandatory, setEditIsMandatory] = useState(false);
+  const [isSavingUpdate, setIsSavingUpdate] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   const [feedback, setFeedback] = useState<{ text: string; isError: boolean } | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -89,10 +108,19 @@ export const OwnerAdminScreen: React.FC<OwnerAdminScreenProps> = ({ currentUser 
     const unsubUsers = subscribeToCommunityUsers(setUsers);
     const unsubChannels = subscribeToChannels(setChannels);
     const unsubPMs = subscribeToPrivateMessages(null, setAllPrivateMessages);
+    const unsubUpdate = subscribeToAppUpdateConfig((cfg) => {
+      setAppUpdateConfig(cfg);
+      setEditVersionName(cfg.versionName);
+      setEditVersionCode(cfg.versionCode.toString());
+      setEditDownloadUrl(cfg.downloadUrl);
+      setEditDescription(cfg.description);
+      setEditIsMandatory(cfg.isMandatory);
+    });
     return () => {
       unsubUsers();
       unsubChannels();
       unsubPMs();
+      unsubUpdate();
     };
   }, []);
 
@@ -339,7 +367,7 @@ export const OwnerAdminScreen: React.FC<OwnerAdminScreenProps> = ({ currentUser 
       )}
 
       {/* Sub-Navigation Tabs */}
-      <div className="grid grid-cols-3 gap-2 bg-[#0e1420] p-1.5 rounded-2xl border border-slate-800">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-[#0e1420] p-1.5 rounded-2xl border border-slate-800">
         <button
           type="button"
           onClick={() => setSubTab('users')}
@@ -377,6 +405,19 @@ export const OwnerAdminScreen: React.FC<OwnerAdminScreenProps> = ({ currentUser 
         >
           <Mail className="w-4 h-4" />
           <span>الرسائل الخاصة ({privateThreads.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setSubTab('app_update')}
+          className={`py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
+            subTab === 'app_update'
+              ? 'bg-amber-400 text-slate-950 shadow'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <Cloud className="w-4 h-4" />
+          <span>تحديث التطبيق 🚀</span>
         </button>
       </div>
 
@@ -983,6 +1024,254 @@ export const OwnerAdminScreen: React.FC<OwnerAdminScreenProps> = ({ currentUser 
             </div>
           </form>
         </div>
+      )}
+
+      {/* TAB 4: APP UPDATE MANAGEMENT */}
+      {subTab === 'app_update' && (
+        <div className="space-y-4">
+          {/* Header Card */}
+          <div className="bg-[#121824] border border-amber-500/40 rounded-3xl p-5 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
+                <Cloud className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-amber-300">
+                  نظام تحديث التطبيق السحابي المباشر
+                </h3>
+                <p className="text-xs text-slate-400">
+                  إدارة الإصدارات وروابط الـ APK وتحديد التحديث كإجباري أو اختياري فورياً لجميع المستخدمين
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="bg-[#0b0f17] p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400">الإصدار المثبت محلياً:</span>
+                <span className="font-bold text-slate-200">
+                  v{CURRENT_APP_VERSION_NAME} (كود {CURRENT_APP_VERSION_CODE})
+                </span>
+              </div>
+              <div className="bg-[#0b0f17] p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                <span className="text-slate-400">الإصدار المنشور بالسحابة:</span>
+                <span
+                  className={`font-black ${
+                    appUpdateConfig && appUpdateConfig.versionCode > CURRENT_APP_VERSION_CODE
+                      ? 'text-emerald-400'
+                      : 'text-slate-300'
+                  }`}
+                >
+                  v{appUpdateConfig?.versionName || '1.2.0'} (
+                  {appUpdateConfig?.isMandatory ? 'إجباري ⚠️' : 'اختياري ✨'})
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Form Card */}
+          <div className="bg-[#121824] border border-slate-800 rounded-3xl p-5 space-y-4">
+            <h4 className="text-xs font-black text-amber-400 flex items-center gap-2">
+              <span>⚙️ بيانات التحديث السحابي الجديد</span>
+            </h4>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">
+                  رقم الإصدار الجديد (Version Name):
+                </label>
+                <input
+                  type="text"
+                  value={editVersionName}
+                  onChange={(e) => setEditVersionName(e.target.value)}
+                  placeholder="مثال: 1.3.0"
+                  className="w-full bg-[#0b0f17] border border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-100 font-['JetBrains_Mono',monospace] focus:outline-none focus:border-amber-400"
+                  dir="ltr"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">
+                  كود الإصدار الرقمي (Version Code):
+                </label>
+                <input
+                  type="number"
+                  value={editVersionCode}
+                  onChange={(e) => setEditVersionCode(e.target.value)}
+                  placeholder="مثال: 11"
+                  className="w-full bg-[#0b0f17] border border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-100 font-['JetBrains_Mono',monospace] focus:outline-none focus:border-amber-400"
+                  dir="ltr"
+                />
+                <span className="block text-[10px] text-slate-500 mt-1">
+                  💡 يجب أن يكون أكبر من {CURRENT_APP_VERSION_CODE} لكي تظهر نافذة التحديث للمستخدمين.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">
+                  رابط تحميل ملف الـ APK المباشر (Download URL):
+                </label>
+                <input
+                  type="text"
+                  value={editDownloadUrl}
+                  onChange={(e) => setEditDownloadUrl(e.target.value)}
+                  placeholder="https://github.com/.../app.apk"
+                  className="w-full bg-[#0b0f17] border border-slate-700 rounded-xl px-3.5 py-2.5 text-slate-100 font-['JetBrains_Mono',monospace] focus:outline-none focus:border-amber-400"
+                  dir="ltr"
+                />
+                <span className="block text-[10px] text-slate-500 mt-1">
+                  الرابط المباشر الذي سيفتح عند ضغط المستخدم على زر "تحديث الآن".
+                </span>
+              </div>
+
+              {/* Mandatory Toggle */}
+              <div
+                onClick={() => setEditIsMandatory(!editIsMandatory)}
+                className={`p-3.5 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
+                  editIsMandatory
+                    ? 'bg-rose-500/10 border-rose-500/40'
+                    : 'bg-amber-400/10 border-amber-400/30'
+                }`}
+              >
+                <div>
+                  <h5
+                    className={`font-black text-xs ${
+                      editIsMandatory ? 'text-rose-400' : 'text-amber-300'
+                    }`}
+                  >
+                    {editIsMandatory ? '⚠️ تحديث إجباري (Mandatory)' : '✨ تحديث اختياري (Optional)'}
+                  </h5>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {editIsMandatory
+                      ? 'لا يسمح للمستخدم باستخدام التطبيق حتى يتم التحديث (لا يوجد زر لاحقاً).'
+                      : 'يسمح للمستخدم بدخول التطبيق مع إظهار زر "لاحقاً".'}
+                  </p>
+                </div>
+                <div
+                  className={`w-12 h-6 rounded-full transition-colors relative flex items-center p-0.5 ${
+                    editIsMandatory ? 'bg-rose-500' : 'bg-slate-700'
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                      editIsMandatory ? '-translate-x-6' : 'translate-x-0'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">
+                  وصف مختصر للتحديث / ما الجديد:
+                </label>
+                <textarea
+                  rows={3}
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="اكتب تفاصيل التحديث والميزات الجديدة..."
+                  className="w-full bg-[#0b0f17] border border-slate-700 rounded-xl p-3 text-slate-100 text-xs focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              {/* Save & Actions */}
+              <div className="pt-2 space-y-2">
+                <button
+                  type="button"
+                  disabled={isSavingUpdate}
+                  onClick={async () => {
+                    const vName = editVersionName.trim();
+                    const vCode = parseInt(editVersionCode, 10);
+                    const dUrl = editDownloadUrl.trim();
+                    if (!vName) {
+                      showNotice('يرجى إدخال رقم الإصدار', true);
+                      return;
+                    }
+                    if (isNaN(vCode)) {
+                      showNotice('يرجى إدخال كود إصدار رقمي صحيح', true);
+                      return;
+                    }
+                    if (!dUrl) {
+                      showNotice('يرجى إدخال رابط تحميل الـ APK', true);
+                      return;
+                    }
+
+                    setIsSavingUpdate(true);
+                    try {
+                      await saveAppUpdateConfig({
+                        versionName: vName,
+                        versionCode: vCode,
+                        downloadUrl: dUrl,
+                        description: editDescription.trim(),
+                        isMandatory: editIsMandatory,
+                      });
+                      showNotice('تم نشر إعدادات التحديث السحابي بنجاح 🚀');
+                    } catch {
+                      showNotice('تعذر حفظ إعدادات التحديث', true);
+                    } finally {
+                      setIsSavingUpdate(false);
+                    }
+                  }}
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition cursor-pointer"
+                >
+                  <Cloud className="w-4 h-4" />
+                  <span>
+                    {isSavingUpdate ? 'جاري الحفظ والنشر...' : 'حفظ ونشر التحديث في السحابة فوراً 🚀'}
+                  </span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPreviewModal(true)}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs border border-amber-400/30 transition cursor-pointer"
+                  >
+                    معاينة نافذة التحديث
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setEditVersionName('1.2.0');
+                      setEditVersionCode('10');
+                      setEditIsMandatory(false);
+                      setIsSavingUpdate(true);
+                      try {
+                        await saveAppUpdateConfig({
+                          versionName: '1.2.0',
+                          versionCode: 10,
+                          downloadUrl: editDownloadUrl.trim(),
+                          description: 'الإصدار الأحدث متوفر الآن مع تحسينات في الأداء وتطوير الواجهة.',
+                          isMandatory: false,
+                        });
+                        showNotice('تم إيقاف التحديث وإعادة الحالة إلى v1.2.0');
+                      } catch {
+                        showNotice('تعذر إيقاف التحديث', true);
+                      } finally {
+                        setIsSavingUpdate(false);
+                      }
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs border border-slate-800 transition cursor-pointer"
+                  >
+                    إيقاف التحديث (إعادة لـ 1.2.0)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPreviewModal && (
+        <AppUpdateModal
+          isOpen={showPreviewModal}
+          config={{
+            versionName: editVersionName.trim() || '1.3.0',
+            versionCode: parseInt(editVersionCode, 10) || 11,
+            downloadUrl: editDownloadUrl.trim(),
+            description: editDescription.trim(),
+            isMandatory: editIsMandatory,
+          }}
+          onDismiss={() => setShowPreviewModal(false)}
+        />
       )}
 
       <ImageViewerModal

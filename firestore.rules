@@ -89,5 +89,15 @@ service cloud.firestore {
         && request.resource.data.updatedAt is int;
       allow delete: if true;
     }
+
+    match /app_updates/{configId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['versionName', 'versionCode', 'downloadUrl', 'isMandatory'])
+        && request.resource.data.versionName is string
+        && request.resource.data.versionCode is int
+        && request.resource.data.downloadUrl is string
+        && request.resource.data.isMandatory is bool;
+      allow delete: if true;
+    }
   }
 }

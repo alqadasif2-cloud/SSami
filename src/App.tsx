@@ -24,6 +24,12 @@ import { MilestoneDetailModal } from './components/MilestoneDetailModal';
 import { PdfReportModal } from './components/PdfReportModal';
 import { ImageViewerModal } from './components/ImageViewerModal';
 import { ConfirmModal } from './components/ConfirmModal';
+import { AppUpdateModal } from './components/AppUpdateModal';
+import {
+  subscribeToAppUpdateConfig,
+  shouldPromptUpdate,
+  AppUpdateConfig,
+} from './services/appUpdates';
 import { Smartphone, Monitor, Wifi, Battery, Signal, Bell, X } from 'lucide-react';
 import {
   getSavedUserSession,
@@ -59,6 +65,20 @@ export default function App() {
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [liveCommunityAlert, setLiveCommunityAlert] = useState<CommunityNotification | null>(null);
+
+  // App Update Modal State
+  const [appUpdateConfig, setAppUpdateConfig] = useState<AppUpdateConfig | null>(null);
+  const [userDismissedUpdate, setUserDismissedUpdate] = useState(false);
+
+  useEffect(() => {
+    const unsub = subscribeToAppUpdateConfig((cfg) => {
+      setAppUpdateConfig(cfg);
+    });
+    return () => unsub();
+  }, []);
+
+  const isUpdateAvailable = shouldPromptUpdate(appUpdateConfig);
+  const showUpdateModal = isUpdateAvailable && (!userDismissedUpdate || Boolean(appUpdateConfig?.isMandatory));
 
   // Mobile Frame Toggle
   const [isMobileFrame, setIsMobileFrame] = useState(true);
@@ -327,7 +347,18 @@ export default function App() {
 
   // If user is not authenticated, show mandatory Login Screen
   if (!currentUser) {
-    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <>
+        <LoginScreen onLoginSuccess={handleLoginSuccess} />
+        {appUpdateConfig && (
+          <AppUpdateModal
+            isOpen={showUpdateModal}
+            config={appUpdateConfig}
+            onDismiss={() => setUserDismissedUpdate(true)}
+          />
+        )}
+      </>
+    );
   }
 
   const isDashboard = activeTab === 'dashboard';
@@ -636,6 +667,15 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* App Update Popup Modal */}
+      {appUpdateConfig && (
+        <AppUpdateModal
+          isOpen={showUpdateModal}
+          config={appUpdateConfig}
+          onDismiss={() => setUserDismissedUpdate(true)}
+        />
       )}
     </div>
   );

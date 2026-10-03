@@ -141,6 +141,21 @@
         "updatedAt": { "type": "integer" }
       },
       "required": ["userId", "challenge", "trades", "updatedAt"]
+    },
+    "AppUpdateConfig": {
+      "title": "AppUpdateConfig",
+      "description": "Dynamic cloud configuration for app updates managed by Owner Sami",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "versionName": { "type": "string" },
+        "versionCode": { "type": "integer" },
+        "downloadUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "isMandatory": { "type": "boolean" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["versionName", "versionCode", "downloadUrl", "isMandatory"]
     }
   },
   "firestore": {
@@ -175,6 +190,10 @@
     "/user_challenges/{userId}": {
       "schema": { "$ref": "#/entities/UserChallengeData" },
       "description": "Permanent per-user isolated trading challenge, settings, trades, and 150 milestones"
+    },
+    "/app_updates/{configId}": {
+      "schema": { "$ref": "#/entities/AppUpdateConfig" },
+      "description": "App update configuration with latest version, download link, changelog, and mandatory/optional flag"
     }
   }
 }

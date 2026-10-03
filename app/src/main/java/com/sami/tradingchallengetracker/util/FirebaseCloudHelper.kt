@@ -507,7 +507,93 @@ object FirebaseCloudHelper {
             null
         }
     }
+
+    fun isNewerVersion(remoteVersion: String, currentVersion: String): Boolean {
+        try {
+            val rClean = remoteVersion.replace(Regex("[^0-9.]"), "").trim()
+            val cClean = currentVersion.replace(Regex("[^0-9.]"), "").trim()
+            val rParts = rClean.split(".").mapNotNull { it.toIntOrNull() }
+            val cParts = cClean.split(".").mapNotNull { it.toIntOrNull() }
+            val maxLen = maxOf(rParts.size, cParts.size)
+            for (i in 0 until maxLen) {
+                val r = rParts.getOrElse(i) { 0 }
+                val c = cParts.getOrElse(i) { 0 }
+                if (r > c) return true
+                if (r < c) return false
+            }
+        } catch (_: Exception) {}
+        return false
+    }
+
+    fun shouldPromptUpdate(
+        remote: AndroidAppUpdateConfig,
+        currentVersionCode: Int,
+        currentVersionName: String
+    ): Boolean {
+        if (remote.versionCode > currentVersionCode) return true
+        if (isNewerVersion(remote.versionName, currentVersionName)) return true
+        return false
+    }
+
+    fun listenToAppUpdateConfig(
+        context: Context,
+        onUpdate: (AndroidAppUpdateConfig) -> Unit
+    ): com.google.firebase.firestore.ListenerRegistration {
+        val db = getFirestore(context)
+        return db.collection("app_updates").document("latest")
+            .addSnapshotListener { snap, _ ->
+                if (snap != null && snap.exists()) {
+                    val data = snap.data ?: return@addSnapshotListener
+                    val config = AndroidAppUpdateConfig(
+                        versionName = (data["versionName"] as? String) ?: "1.2.0",
+                        versionCode = (data["versionCode"] as? Number)?.toInt() ?: 10,
+                        downloadUrl = (data["downloadUrl"] as? String) ?: "https://github.com/alsonadi44/SamiTradingTracker/releases",
+                        description = (data["description"] as? String) ?: "الإصدار الأحدث متوفر الآن مع تحسينات في الأداء وتطوير الواجهة.",
+                        isMandatory = (data["isMandatory"] as? Boolean) ?: false,
+                        minSupportedVersionCode = (data["minSupportedVersionCode"] as? Number)?.toInt(),
+                        updatedAt = (data["updatedAt"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                    )
+                    onUpdate(config)
+                } else if (snap != null && !snap.exists()) {
+                    val def = AndroidAppUpdateConfig()
+                    saveAppUpdateConfig(context, def, onSuccess = {}, onError = {})
+                    onUpdate(def)
+                }
+            }
+    }
+
+    fun saveAppUpdateConfig(
+        context: Context,
+        config: AndroidAppUpdateConfig,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val db = getFirestore(context)
+        val map = mapOf(
+            "versionName" to config.versionName.trim(),
+            "versionCode" to config.versionCode,
+            "downloadUrl" to config.downloadUrl.trim(),
+            "description" to config.description.trim(),
+            "isMandatory" to config.isMandatory,
+            "minSupportedVersionCode" to (config.minSupportedVersionCode ?: config.versionCode),
+            "updatedAt" to System.currentTimeMillis()
+        )
+        db.collection("app_updates").document("latest")
+            .set(map)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { e -> onError(e.localizedMessage ?: "فشل حفظ إعدادات التحديث") }
+    }
 }
+
+data class AndroidAppUpdateConfig(
+    val versionName: String = "1.2.0",
+    val versionCode: Int = 10,
+    val downloadUrl: String = "https://github.com/alsonadi44/SamiTradingTracker/releases",
+    val description: String = "الإصدار الأحدث متوفر الآن مع تحسينات في الأداء وتطوير الواجهة.",
+    val isMandatory: Boolean = false,
+    val minSupportedVersionCode: Int? = null,
+    val updatedAt: Long = System.currentTimeMillis()
+)
 
 @Composable
 fun CloudAsyncImage(

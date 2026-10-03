@@ -54,6 +54,7 @@ import com.sami.tradingchallengetracker.data.MilestoneStatus
 import com.sami.tradingchallengetracker.data.TradeEntity
 import com.sami.tradingchallengetracker.data.TradeType
 import com.sami.tradingchallengetracker.ui.*
+import com.sami.tradingchallengetracker.util.AndroidAppUpdateConfig
 import com.sami.tradingchallengetracker.util.CloudAsyncImage
 import com.sami.tradingchallengetracker.util.FirebaseCloudHelper
 import com.sami.tradingchallengetracker.util.Money
@@ -84,6 +85,38 @@ enum class ScreenTab {
 @Composable
 fun TradingApp(viewModel: MainViewModel) {
     val context = LocalContext.current
+
+    val currentVersionName = remember {
+        try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            pInfo.versionName ?: "1.2.0"
+        } catch (_: Exception) {
+            "1.2.0"
+        }
+    }
+    val currentVersionCode = remember {
+        try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            if (Build.VERSION.SDK_INT >= 28) pInfo.longVersionCode.toInt() else @Suppress("DEPRECATION") pInfo.versionCode
+        } catch (_: Exception) {
+            10
+        }
+    }
+
+    var appUpdateConfig by remember { mutableStateOf<AndroidAppUpdateConfig?>(null) }
+    var userDismissedUpdate by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        val reg = FirebaseCloudHelper.listenToAppUpdateConfig(context) { cfg ->
+            appUpdateConfig = cfg
+        }
+        onDispose { reg.remove() }
+    }
+
+    val isUpdateAvailable = appUpdateConfig != null &&
+        FirebaseCloudHelper.shouldPromptUpdate(appUpdateConfig!!, currentVersionCode, currentVersionName)
+    val shouldShowUpdateDialog = isUpdateAvailable && (!userDismissedUpdate || (appUpdateConfig?.isMandatory == true))
+
     var currentUser by remember {
         val prefs = context.getSharedPreferences("sami_auth_prefs", Context.MODE_PRIVATE)
         val userId = prefs.getInt("user_id", -1)
@@ -108,10 +141,22 @@ fun TradingApp(viewModel: MainViewModel) {
     // Mandatory Login Screen if not authenticated
     val activeUser = currentUser
     if (activeUser == null) {
-        AndroidLoginScreen(onLoginSuccess = { user ->
-            viewModel.setCurrentUser(user.id, user.displayName)
-            currentUser = user
-        })
+        Box(modifier = Modifier.fillMaxSize()) {
+            AndroidLoginScreen(onLoginSuccess = { user ->
+                viewModel.setCurrentUser(user.id, user.displayName)
+                currentUser = user
+            })
+
+            val cfg = appUpdateConfig
+            if (shouldShowUpdateDialog && cfg != null) {
+                AppUpdateDialog(
+                    config = cfg,
+                    currentVersionName = currentVersionName,
+                    currentVersionCode = currentVersionCode,
+                    onDismiss = { userDismissedUpdate = true }
+                )
+            }
+        }
         return
     }
 
@@ -1047,6 +1092,17 @@ fun TradingApp(viewModel: MainViewModel) {
                 }
             },
             containerColor = CardBg
+        )
+    }
+
+    // App Update Dialog for authenticated session
+    val cfg = appUpdateConfig
+    if (shouldShowUpdateDialog && cfg != null) {
+        AppUpdateDialog(
+            config = cfg,
+            currentVersionName = currentVersionName,
+            currentVersionCode = currentVersionCode,
+            onDismiss = { userDismissedUpdate = true }
         )
     }
 }

@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.firestore.Query
+import com.sami.tradingchallengetracker.util.AndroidAppUpdateConfig
 import com.sami.tradingchallengetracker.util.CloudAsyncImage
 import com.sami.tradingchallengetracker.util.FirebaseCloudHelper
 import kotlinx.coroutines.launch
@@ -293,6 +295,16 @@ fun AndroidOwnerAdminScreen(
     var replyImageUri by remember { mutableStateOf<Uri?>(null) }
     var isSendingReply by remember { mutableStateOf(false) }
 
+    // App Update Cloud Config State
+    var appUpdateConfig by remember { mutableStateOf<AndroidAppUpdateConfig?>(null) }
+    var editVersionName by remember { mutableStateOf("1.2.0") }
+    var editVersionCode by remember { mutableStateOf("10") }
+    var editDownloadUrl by remember { mutableStateOf("https://github.com/alsonadi44/SamiTradingTracker/releases") }
+    var editDescription by remember { mutableStateOf("الإصدار الأحدث متوفر الآن مع تحسينات في الأداء وتطوير الواجهة.") }
+    var editIsMandatory by remember { mutableStateOf(false) }
+    var isSavingUpdate by remember { mutableStateOf(false) }
+    var showPreviewDialog by remember { mutableStateOf(false) }
+
     fun showFeedback(msg: String, isError: Boolean = false) {
         feedbackText = msg
         isFeedbackError = isError
@@ -349,10 +361,22 @@ fun AndroidOwnerAdminScreen(
                 allPrivateMessages.addAll(list)
             }
 
+        val updateReg = FirebaseCloudHelper.listenToAppUpdateConfig(context) { cfg ->
+            appUpdateConfig = cfg
+            if (!isSavingUpdate) {
+                editVersionName = cfg.versionName
+                editVersionCode = cfg.versionCode.toString()
+                editDownloadUrl = cfg.downloadUrl
+                editDescription = cfg.description
+                editIsMandatory = cfg.isMandatory
+            }
+        }
+
         onDispose {
             uReg.remove()
             cReg.remove()
             pmReg.remove()
+            updateReg.remove()
         }
     }
 
@@ -412,7 +436,9 @@ fun AndroidOwnerAdminScreen(
 
         // Sub-Tabs Selector
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
@@ -420,8 +446,7 @@ fun AndroidOwnerAdminScreen(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (subTab == "users") Color(0xFFFFD700) else Color(0xFF121824)
                 ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1f)
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
                     "المستخدمون (${users.size})",
@@ -435,8 +460,7 @@ fun AndroidOwnerAdminScreen(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (subTab == "channels") Color(0xFFFFD700) else Color(0xFF121824)
                 ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1f)
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
                     "القنوات (${channels.size})",
@@ -450,12 +474,25 @@ fun AndroidOwnerAdminScreen(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (subTab == "messages") Color(0xFFFFD700) else Color(0xFF121824)
                 ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1f)
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text(
                     "الرسائل الخاصة",
                     color = if (subTab == "messages") Color.Black else Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+            Button(
+                onClick = { subTab = "app_update" },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (subTab == "app_update") Color(0xFFFFD700) else Color(0xFF121824)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    "تحديث التطبيق 🚀",
+                    color = if (subTab == "app_update") Color.Black else Color.White,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black
                 )
@@ -1039,6 +1076,339 @@ fun AndroidOwnerAdminScreen(
                 }
             }
         }
+
+        // =====================================================================
+        // SUB-TAB 4: CLOUD APP UPDATE & VERSION CONTROL FOR OWNER SAMI
+        // =====================================================================
+        if (subTab == "app_update") {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                item {
+                    // Header card
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF121824)),
+                        border = BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0x33FFD700)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudSync,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFFD700),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        "نظام تحديث التطبيق السحابي المباشر",
+                                        color = Color(0xFFFFD700),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        "إدارة الإصدارات وروابط الـ APK وتحديد التحديث كإجباري أو اختياري",
+                                        color = Color(0xFF94A3B8),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+
+                            Divider(color = Color(0x33F59E0B), modifier = Modifier.padding(vertical = 2.dp))
+
+                            // Current Installed APK info
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("الإصدار المثبت على هذا الجهاز:", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                                Surface(
+                                    color = Color(0xFF1E293B),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(0.6.dp, Color(0x6694A3B8))
+                                ) {
+                                    Text(
+                                        "v1.2.0 (بناء 10)",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+
+                            // Cloud Active Version
+                            val cloudCfg = appUpdateConfig
+                            val isCloudNewer = cloudCfg != null && (cloudCfg.versionCode > 10 || FirebaseCloudHelper.isNewerVersion(cloudCfg.versionName, "1.2.0"))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("الإصدار المنشور بالسحابة:", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                                Surface(
+                                    color = if (isCloudNewer) Color(0x3310B981) else Color(0x3364748B),
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(0.6.dp, if (isCloudNewer) Color(0xFF10B981) else Color(0xFF64748B))
+                                ) {
+                                    Text(
+                                        text = if (cloudCfg != null) {
+                                            "v${cloudCfg.versionName} (${if (cloudCfg.isMandatory) "إجباري ⚠️" else "اختياري ✨"})"
+                                        } else "جاري التحميل...",
+                                        color = if (isCloudNewer) Color(0xFF34D399) else Color(0xFF94A3B8),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    // Update Configuration Editor Form
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF121824)),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text("⚙️ بيانات التحديث السحابي الجديد", color = Color(0xFFFFD700), fontWeight = FontWeight.Black, fontSize = 13.sp)
+
+                            // Version Name
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("رقم الإصدار الجديد (Version Name):", color = Color.LightGray, fontSize = 11.sp)
+                                OutlinedTextField(
+                                    value = editVersionName,
+                                    onValueChange = { editVersionName = it },
+                                    placeholder = { Text("مثال: 1.3.0", color = Color(0xFF64748B)) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            // Version Code
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("كود الإصدار الرقمي (Version Code):", color = Color.LightGray, fontSize = 11.sp)
+                                OutlinedTextField(
+                                    value = editVersionCode,
+                                    onValueChange = { editVersionCode = it.filter { char -> char.isDigit() } },
+                                    placeholder = { Text("مثال: 11", color = Color(0xFF64748B)) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text("💡 يجب أن يكون أكبر من كود التطبيق الحالي (10) لظهور نافذة التحديث للمستخدمين", color = Color(0xFF64748B), fontSize = 10.sp)
+                            }
+
+                            // Download URL
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("رابط تحميل ملف الـ APK المباشر:", color = Color.LightGray, fontSize = 11.sp)
+                                OutlinedTextField(
+                                    value = editDownloadUrl,
+                                    onValueChange = { editDownloadUrl = it },
+                                    placeholder = { Text("https://github.com/.../app.apk", color = Color(0xFF64748B)) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text("الرابط المباشر الذي سيفتح في المتصفح عند ضغط المستخدم على 'تحديث الآن'", color = Color(0xFF64748B), fontSize = 10.sp)
+                            }
+
+                            // Mandatory / Optional Toggle Card
+                            Card(
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (editIsMandatory) Color(0x26EF4444) else Color(0x1AF59E0B)
+                                ),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (editIsMandatory) Color(0x80EF4444) else Color(0x80F59E0B)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (editIsMandatory) "⚠️ تحديث إجباري (Mandatory)" else "✨ تحديث اختياري (Optional)",
+                                            color = if (editIsMandatory) Color(0xFFFCA5A5) else Color(0xFFFDE68A),
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 13.sp
+                                        )
+                                        Text(
+                                            text = if (editIsMandatory) {
+                                                "يمنع المستخدم من استخدام التطبيق حتى يقوم بالتحديث (بدون زر لاحقاً)."
+                                            } else {
+                                                "يسمح للمستخدم بدخول التطبيق مع إظهار زر 'لاحقاً'."
+                                            },
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 10.sp
+                                        )
+                                    }
+
+                                    Switch(
+                                        checked = editIsMandatory,
+                                        onCheckedChange = { editIsMandatory = it },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color(0xFFEF4444),
+                                            checkedTrackColor = Color(0x66EF4444),
+                                            uncheckedThumbColor = Color(0xFFFFD700),
+                                            uncheckedTrackColor = Color(0x33FFD700)
+                                        )
+                                    )
+                                }
+                            }
+
+                            // Description / Release notes
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("وصف مختصر للتحديث / ما الجديد:", color = Color.LightGray, fontSize = 11.sp)
+                                OutlinedTextField(
+                                    value = editDescription,
+                                    onValueChange = { editDescription = it },
+                                    placeholder = { Text("اكتب الميزات الجديدة وإصلاحات التحديث...", color = Color(0xFF64748B)) },
+                                    minLines = 3,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Publish Button
+                            Button(
+                                enabled = !isSavingUpdate,
+                                onClick = {
+                                    val vName = editVersionName.trim()
+                                    val vCode = editVersionCode.toIntOrNull() ?: 10
+                                    val dUrl = editDownloadUrl.trim()
+                                    if (vName.isBlank()) {
+                                        showFeedback("يرجى إدخال رقم الإصدار.", true)
+                                        return@Button
+                                    }
+                                    if (dUrl.isBlank()) {
+                                        showFeedback("يرجى إدخال رابط تحميل الـ APK.", true)
+                                        return@Button
+                                    }
+
+                                    isSavingUpdate = true
+                                    val cfg = AndroidAppUpdateConfig(
+                                        versionName = vName,
+                                        versionCode = vCode,
+                                        downloadUrl = dUrl,
+                                        description = editDescription.trim(),
+                                        isMandatory = editIsMandatory
+                                    )
+
+                                    FirebaseCloudHelper.saveAppUpdateConfig(
+                                        context = context,
+                                        config = cfg,
+                                        onSuccess = {
+                                            isSavingUpdate = false
+                                            showFeedback("تم حفظ ونشر التحديث السحابي بنجاح 🚀")
+                                        },
+                                        onError = { err ->
+                                            isSavingUpdate = false
+                                            showFeedback(err, true)
+                                        }
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFD700)),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                            ) {
+                                if (isSavingUpdate) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.Black, strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(
+                                    "حفظ ونشر التحديث السحابي فوراً 🚀",
+                                    color = Color.Black,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 13.sp
+                                )
+                            }
+
+                            // Secondary actions: Preview & Deactivate
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        showPreviewDialog = true
+                                    },
+                                    border = BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("معاينة النافذة", color = Color(0xFFFFD700), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        editVersionName = "1.2.0"
+                                        editVersionCode = "10"
+                                        editIsMandatory = false
+                                        isSavingUpdate = true
+                                        val cfg = AndroidAppUpdateConfig(
+                                            versionName = "1.2.0",
+                                            versionCode = 10,
+                                            downloadUrl = editDownloadUrl.trim(),
+                                            description = "الإصدار الأحدث متوفر الآن مع تحسينات في الأداء وتطوير الواجهة.",
+                                            isMandatory = false
+                                        )
+                                        FirebaseCloudHelper.saveAppUpdateConfig(
+                                            context = context,
+                                            config = cfg,
+                                            onSuccess = {
+                                                isSavingUpdate = false
+                                                showFeedback("تم إيقاف التحديث وإعادة الحالة إلى v1.2.0")
+                                            },
+                                            onError = { err ->
+                                                isSavingUpdate = false
+                                                showFeedback(err, true)
+                                            }
+                                        )
+                                    },
+                                    border = BorderStroke(1.dp, Color(0xFF64748B)),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("إيقاف التحديث", color = Color.LightGray, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Edit User Password Dialog
@@ -1277,6 +1647,21 @@ fun AndroidOwnerAdminScreen(
         FullScreenImageViewerDialog(
             imageUrl = activePrev,
             onDismiss = { previewImageUrl = null }
+        )
+    }
+
+    if (showPreviewDialog) {
+        AppUpdateDialog(
+            config = AndroidAppUpdateConfig(
+                versionName = editVersionName.trim().ifEmpty { "1.3.0" },
+                versionCode = editVersionCode.toIntOrNull() ?: 11,
+                downloadUrl = editDownloadUrl.trim(),
+                description = editDescription.trim(),
+                isMandatory = editIsMandatory
+            ),
+            currentVersionName = "1.2.0",
+            currentVersionCode = 10,
+            onDismiss = { showPreviewDialog = false }
         )
     }
 }
